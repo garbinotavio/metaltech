@@ -4,10 +4,11 @@ const router   = express.Router();
 const auth     = require('../middlewares/auth');
 
 const Usuario  = require('../models/Usuario');
-const Pizza    = require('../models/Pizza');
+const Produto  = require('../models/Produto');
 const Cliente  = require('../models/Cliente');
-const Pedido   = require('../models/Pedido');
+const Ordem    = require('../models/Ordem');
 
+// ── Auth ───────────────────────────────────────────────────
 router.post('/auth/login', async (req, res) => {
   try {
     const { email, senha } = req.body;
@@ -29,43 +30,45 @@ router.post('/auth/login', async (req, res) => {
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.get('/pizzas', auth, async (req, res) => {
-  try { res.json(await Pizza.findAll()); }
+// ── Produtos ───────────────────────────────────────────────
+router.get('/produtos', auth, async (req, res) => {
+  try { res.json(await Produto.findAll()); }
   catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.get('/pizzas/:id', auth, async (req, res) => {
+router.get('/produtos/:id', auth, async (req, res) => {
   try {
-    const p = await Pizza.findById(req.params.id);
-    if (!p) return res.status(404).json({ erro: 'Pizza não encontrada' });
+    const p = await Produto.findById(req.params.id);
+    if (!p) return res.status(404).json({ erro: 'Produto não encontrado' });
     res.json(p);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.post('/pizzas', auth, async (req, res) => {
+router.post('/produtos', auth, async (req, res) => {
   try {
-    if (!req.body.nome || !req.body.ingredientes)
-      return res.status(400).json({ erro: 'Nome e ingredientes são obrigatórios' });
-    res.status(201).json(await Pizza.create(req.body));
+    if (!req.body.nome || !req.body.especificacoes)
+      return res.status(400).json({ erro: 'Nome e especificações são obrigatórios' });
+    res.status(201).json(await Produto.create(req.body));
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.put('/pizzas/:id', auth, async (req, res) => {
+router.put('/produtos/:id', auth, async (req, res) => {
   try {
-    const p = await Pizza.update(req.params.id, req.body);
-    if (!p) return res.status(404).json({ erro: 'Pizza não encontrada' });
+    const p = await Produto.update(req.params.id, req.body);
+    if (!p) return res.status(404).json({ erro: 'Produto não encontrado' });
     res.json(p);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.delete('/pizzas/:id', auth, async (req, res) => {
+router.delete('/produtos/:id', auth, async (req, res) => {
   try {
-    const ok = await Pizza.delete(req.params.id);
-    if (!ok) return res.status(404).json({ erro: 'Pizza não encontrada' });
-    res.json({ mensagem: 'Pizza deletada' });
+    const ok = await Produto.delete(req.params.id);
+    if (!ok) return res.status(404).json({ erro: 'Produto não encontrado' });
+    res.json({ mensagem: 'Produto deletado' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
+// ── Clientes ───────────────────────────────────────────────
 router.get('/clientes', auth, async (req, res) => {
   try { res.json(await Cliente.findAll(req.query.busca)); }
   catch (e) { res.status(500).json({ erro: e.message }); }
@@ -103,62 +106,62 @@ router.delete('/clientes/:id', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.get('/pedidos', auth, async (req, res) => {
+// ── Ordens de Produção ─────────────────────────────────────
+router.get('/ordens', auth, async (req, res) => {
   try {
     const filtros = {};
-    if (req.query.garcom) filtros.garcomId = req.query.garcom;
-    res.json(await Pedido.findAll(filtros));
+    if (req.query.lider) filtros.liderId = req.query.lider;
+    res.json(await Ordem.findAll(filtros));
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.get('/pedidos/:id', auth, async (req, res) => {
+router.get('/ordens/:id', auth, async (req, res) => {
   try {
-    const p = await Pedido.findById(req.params.id);
-    if (!p) return res.status(404).json({ erro: 'Pedido não encontrado' });
-    res.json(p);
+    const o = await Ordem.findById(req.params.id);
+    if (!o) return res.status(404).json({ erro: 'Ordem não encontrada' });
+    res.json(o);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.post('/pedidos', auth, async (req, res) => {
+router.post('/ordens', auth, async (req, res) => {
   try {
-    const { cliente, itens, formaPagamento } = req.body;
-    if (!cliente || !itens?.length || !formaPagamento)
-      return res.status(400).json({ erro: 'cliente, itens e formaPagamento são obrigatórios' });
+    const { cliente, itens } = req.body;
+    if (!cliente || !itens?.length)
+      return res.status(400).json({ erro: 'cliente e itens são obrigatórios' });
 
-    const novo = await Pedido.create({
+    const nova = await Ordem.create({
       clienteId:      cliente,
       itens,
-      taxaEntrega:    req.body.taxaEntrega,
-      formaPagamento,
-      troco:          req.body.troco,
+      formaPagamento: req.body.formaPagamento,
       observacoes:    req.body.observacoes,
-      mesa:           req.body.mesa,
+      prazo:          req.body.prazo,
       origem:         req.body.origem,
-      garcomId:       req.body.garcom || req.usuario?.id,
+      liderId:        req.body.lider || req.usuario?.id,
     });
-    res.status(201).json(novo);
+    res.status(201).json(nova);
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 
-router.patch('/pedidos/:id/status', auth, async (req, res) => {
+router.patch('/ordens/:id/status', auth, async (req, res) => {
   try {
-    const validos = ['recebido','em_preparo','saiu_entrega','entregue','cancelado'];
+    const validos = ['aguardando_producao', 'em_producao', 'finalizado', 'cancelado'];
     if (!validos.includes(req.body.status))
       return res.status(400).json({ erro: 'Status inválido' });
-    const p = await Pedido.updateStatus(req.params.id, req.body.status);
-    if (!p) return res.status(404).json({ erro: 'Pedido não encontrado' });
-    res.json(p);
+    const o = await Ordem.updateStatus(req.params.id, req.body.status);
+    if (!o) return res.status(404).json({ erro: 'Ordem não encontrada' });
+    res.json(o);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
-router.delete('/pedidos/:id', auth, async (req, res) => {
+router.delete('/ordens/:id', auth, async (req, res) => {
   try {
-    const ok = await Pedido.delete(req.params.id);
-    if (!ok) return res.status(404).json({ erro: 'Pedido não encontrado' });
-    res.json({ mensagem: 'Pedido deletado' });
+    const ok = await Ordem.delete(req.params.id);
+    if (!ok) return res.status(404).json({ erro: 'Ordem não encontrada' });
+    res.json({ mensagem: 'Ordem deletada' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
 });
 
+// ── Usuários ───────────────────────────────────────────────
 router.get('/usuarios', auth, async (req, res) => {
   try {
     if (req.usuario.perfil !== 'Administrador')

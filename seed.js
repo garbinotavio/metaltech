@@ -7,14 +7,14 @@ async function seed() {
     await ready;
     console.log('🧹 Limpando banco...');
 
-    run('DELETE FROM itens_pedido');
-    run('DELETE FROM pedidos');
-    run('DELETE FROM pizzas');
+    run('DELETE FROM itens_ordem');
+    run('DELETE FROM ordens');
+    run('DELETE FROM produtos');
     run('DELETE FROM clientes');
     run('DELETE FROM usuarios');
 
     try {
-      run("DELETE FROM sqlite_sequence WHERE name IN ('itens_pedido','pedidos','pizzas','clientes','usuarios')");
+      run("DELETE FROM sqlite_sequence WHERE name IN ('itens_ordem','ordens','produtos','clientes','usuarios')");
     } catch(_) { }
 
     console.log('✅ Banco limpo');
@@ -22,76 +22,63 @@ async function seed() {
     const hash = await bcrypt.hash('123456', 10);
 
     run('INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, ?)',
-      ['Administrador Master', 'admin@pizzaria.com', hash, 'Administrador']);
+      ['Administrador Master', 'admin@metaltech.com', hash, 'Administrador']);
     run('INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, ?)',
-      ['Atendente Oficial', 'atendente@pizzaria.com', hash, 'Atendente']);
+      ['Operador Comercial', 'operador@metaltech.com', hash, 'Operador']);
     run('INSERT INTO usuarios (nome, email, senha, perfil) VALUES (?, ?, ?, ?)',
-      ['Garcom Oficial', 'garcom@pizzaria.com', hash, 'Garcom']);
+      ['Líder de Produção', 'lider@metaltech.com', hash, 'Lider']);
 
     console.log('✅ 3 usuários criados');
 
     const clientes = [
-      ['Lucas Ferreira Santos',   '11991234501', {rua:'Rua das Acácias',numero:'142',bairro:'Vila Madalena',cidade:'São Paulo',cep:'05435-000'}, 'Alérgico a glúten'],
-      ['Camila Rodrigues Lima',   '11991234502', {rua:'Av. Paulista',numero:'900',bairro:'Bela Vista',cidade:'São Paulo',cep:'01310-100'}, ''],
-      ['Rafael Oliveira Costa',   '11991234503', {rua:'Rua Oscar Freire',numero:'55',bairro:'Jardins',cidade:'São Paulo',cep:'01426-001'}, 'Prefere entrega após 19h'],
-      ['Isabela Martins Souza',   '11991234504', {rua:'Rua Consolação',numero:'310',bairro:'Consolação',cidade:'São Paulo',cep:'01302-000'}, ''],
-      ['Bruno Almeida Pereira',   '11991234505', {rua:'Rua Augusta',numero:'780',bairro:'Cerqueira César',cidade:'São Paulo',cep:'01304-001'}, 'Intolerante a lactose'],
-      ['Juliana Nascimento Dias', '11991234506', {rua:'Rua Haddock Lobo',numero:'220',bairro:'Jardim América',cidade:'São Paulo',cep:'01414-000'}, ''],
-      ['Thiago Carvalho Mendes',  '11991234507', {rua:'Alameda Santos',numero:'415',bairro:'Cerqueira César',cidade:'São Paulo',cep:'01419-000'}, 'Cliente VIP'],
-      ['Fernanda Gomes Ribeiro',  '11991234508', {rua:'Rua Fradique Coutinho',numero:'88',bairro:'Pinheiros',cidade:'São Paulo',cep:'05416-010'}, ''],
-      ['Diego Barbosa Freitas',   '11991234509', {rua:'Rua Wisard',numero:'305',bairro:'Vila Madalena',cidade:'São Paulo',cep:'05434-080'}, 'Sem cebola nos pedidos'],
-      ['Larissa Teixeira Moura',  '11991234510', {rua:'Rua Amauri',numero:'60',bairro:'Itaim Bibi',cidade:'São Paulo',cep:'01448-000'}, ''],
-      ['Matheus Cardoso Nunes',   '11991234511', {rua:'Rua Pamplona',numero:'1200',bairro:'Jardim Paulista',cidade:'São Paulo',cep:'01405-002'}, ''],
-      ['Patrícia Rocha Vieira',   '11991234512', {rua:'Av. Brigadeiro Faria Lima',numero:'2000',bairro:'Pinheiros',cidade:'São Paulo',cep:'01452-000'}, 'Prefere pagamento em dinheiro'],
-      ['Anderson Silva Campos',   '11991234513', {rua:'Rua Estados Unidos',numero:'175',bairro:'Jardim América',cidade:'São Paulo',cep:'01427-000'}, ''],
-      ['Natália Araújo Castro',   '11991234514', {rua:'Rua José Maria Lisboa',numero:'530',bairro:'Jardim Paulista',cidade:'São Paulo',cep:'01423-000'}, 'Vegetariana'],
-      ['Felipe Cunha Rezende',    '11991234515', {rua:'Rua Ministro Rocha Azevedo',numero:'72',bairro:'Cerqueira César',cidade:'São Paulo',cep:'01410-001'}, ''],
-      ['Vanessa Lopes Guimarães', '11991234516', {rua:'Rua Bela Cintra',numero:'450',bairro:'Consolação',cidade:'São Paulo',cep:'01415-000'}, 'Sem pimenta'],
-      ['Gustavo Pires Andrade',   '11991234517', {rua:'Rua da Consolação',numero:'1800',bairro:'Higienópolis',cidade:'São Paulo',cep:'01301-100'}, ''],
-      ['Aline Moreira Fonseca',   '11991234518', {rua:'Av. Higienópolis',numero:'618',bairro:'Higienópolis',cidade:'São Paulo',cep:'01238-001'}, 'Cliente frequente'],
-      ['Rodrigo Tavares Monteiro','11991234519', {rua:'Rua Itapeva',numero:'286',bairro:'Bela Vista',cidade:'São Paulo',cep:'01332-000'}, ''],
-      ['Carolina Batista Pinto',  '11991234520', {rua:'Rua Peixoto Gomide',numero:'1100',bairro:'Jardim Paulista',cidade:'São Paulo',cep:'01409-001'}, 'Prefere bordas recheadas'],
+      ['AutoPeças Brasil Ltda',       '11991230001', {rua:'Av. Industrial',numero:'1200',bairro:'Distrito Industrial',cidade:'São Paulo',cep:'01000-000'}, 'Pedidos urgentes com 24h de prazo'],
+      ['Construtora Norte S.A.',      '11991230002', {rua:'Rua das Obras',numero:'500',bairro:'Centro',cidade:'Campinas',cep:'13000-000'}, ''],
+      ['Metalúrgica Omega',           '11991230003', {rua:'Rua do Aço',numero:'88',bairro:'Vila Industrial',cidade:'Santo André',cep:'09000-000'}, 'Cliente VIP - prioridade máxima'],
+      ['Indústria Ferreira & Filhos', '11991230004', {rua:'Av. das Fábricas',numero:'300',bairro:'Parque Industrial',cidade:'Mauá',cep:'09300-000'}, ''],
+      ['TechMotor Componentes',       '11991230005', {rua:'Rua Mecânica',numero:'45',bairro:'Bairro Industrial',cidade:'São Bernardo',cep:'09700-000'}, 'Peças de alta precisão'],
+      ['Hidráulica Paulista',         '11991230006', {rua:'Av. Hidráulica',numero:'210',bairro:'Centro',cidade:'Guarulhos',cep:'07000-000'}, ''],
+      ['Agrotech Máquinas',           '11991230007', {rua:'Estrada Rural',numero:'1500',bairro:'Zona Rural',cidade:'Jundiaí',cep:'13200-000'}, 'Entrega apenas às terças'],
+      ['Transportes Pesados S.A.',    '11991230008', {rua:'Rodovia SP-330',numero:'km 45',bairro:'Marginal',cidade:'Ribeirão Preto',cep:'14000-000'}, ''],
+      ['Estruturas Metálicas RS',     '11991230009', {rua:'Rua do Ferro',numero:'920',bairro:'Industrial',cidade:'São Carlos',cep:'13560-000'}, 'Pedidos em lote'],
+      ['Manutenção Industrial JM',    '11991230010', {rua:'Rua da Manutenção',numero:'33',bairro:'Centro',cidade:'Sorocaba',cep:'18000-000'}, ''],
     ];
 
     for (const [nome, tel, end, obs] of clientes) {
       run('INSERT INTO clientes (nome, telefone, endereco, observacoes) VALUES (?, ?, ?, ?)',
         [nome, tel, JSON.stringify(end), obs]);
     }
-    console.log('✅ 20 clientes criados');
+    console.log('✅ 10 clientes criados');
 
-    const pizzas = [
-      ['Calabresa','Clássica brasileira, presença garantida em qualquer mesa','Calabresa fatiada, cebola e azeitona',{P:35,M:45,G:55},'tradicional'],
-      ['Margherita','A tradição italiana em cada fatia','Molho de tomate, mussarela e manjericão fresco',{P:34,M:44,G:54},'tradicional'],
-      ['Portuguesa','Farta e completa, agrada a todos','Presunto, ovo, cebola, azeitona e pimentão',{P:38,M:48,G:58},'tradicional'],
-      ['Napolitana','Simples, leve e deliciosa','Tomate, mussarela, alho e orégano',{P:33,M:43,G:53},'tradicional'],
-      ['Muçarela','A base de tudo, perfeita em sua simplicidade','Molho de tomate e mussarela',{P:30,M:40,G:50},'tradicional'],
-      ['Frango com Catupiry','Uma das mais pedidas da casa','Frango desfiado temperado e catupiry original',{P:38,M:48,G:58},'especial'],
-      ['Baiana','Para quem gosta de um toque picante','Calabresa moída, cebola e pimenta dedo-de-moça',{P:37,M:47,G:57},'especial'],
-      ['Atum','Sabor marcante e diferenciado','Atum em lascas, cebola roxa e azeitona preta',{P:40,M:50,G:60},'especial'],
-      ['Vegetariana','Colorida, saudável e cheia de sabor','Abobrinha, cenoura, brócolis, pimentão e tomate cereja',{P:36,M:46,G:56},'especial'],
-      ['Pepperoni','Estilo americano com muito pepperoni crocante','Pepperoni fatiado, mussarela e orégano',{P:41,M:51,G:61},'especial'],
-      ['Frango com Bacon','Combinação irresistível de sabores defumados','Frango desfiado, bacon crocante, catupiry e milho',{P:42,M:52,G:62},'especial'],
-      ['Camarão','Sabor do mar com toque especial da casa','Camarão ao alho e óleo, catupiry e salsa',{P:52,M:65,G:78},'especial'],
-      ['Quatro Queijos','Para os verdadeiros apaixonados por queijo','Mussarela, provolone, gorgonzola e parmesão',{P:44,M:56,G:68},'premium'],
-      ['Salmão com Cream Cheese','Sofisticada e surpreendente','Salmão defumado, cream cheese, alcaparras e endro',{P:58,M:72,G:86},'premium'],
-      ['Trufada com Cogumelos','Alta gastronomia em formato de pizza','Funghi porcini, cogumelo Paris, azeite trufado e parmesão',{P:62,M:78,G:94},'premium'],
-      ['Filet Mignon com Gorgonzola','Requinte e sabor em cada pedaço','Medalhão de filé mignon, gorgonzola, rúcula e redução de vinho tinto',{P:68,M:85,G:102},'premium'],
-      ['Burrata com Prosciutto','A escolha dos que apreciam o fino','Burrata fresca, prosciutto di Parma, rúcula e mel de trufa',{P:65,M:82,G:98},'premium'],
-      ['Camarão VIP','Nossa pizza mais requintada de frutos do mar','Camarão GG flambado, cream cheese, aspargos e ovas de peixe',{P:72,M:90,G:108},'premium'],
-      ['Chocolate com Morango','A sobremesa perfeita para encerrar a refeição','Chocolate ao leite, morango fresco e granulado',{P:42,M:52,G:62},'doce'],
-      ['Nutella com Banana','Irresistível combinação que conquista de primeira','Nutella, banana caramelada, leite condensado e canela',{P:46,M:58,G:70},'doce'],
+    const produtos = [
+      ['Eixo de Transmissão',      'Eixo para transmissão de torque em sistemas industriais',     'Aço SAE 1045, diâmetro 50mm, comprimento 500mm, tolerância H7',          120.00, 'usinagem'],
+      ['Engrenagem Cônica',        'Engrenagem para redução de velocidade e transmissão de força', 'Módulo 3, 24 dentes, aço 4340 tratado termicamente',                      85.00, 'usinagem'],
+      ['Flange de Acoplamento',    'Flange para conexão entre eixos e tubulações',                 'Aço carbono, furação padrão ANSI B16.5, classe 150',                      65.00, 'usinagem'],
+      ['Bucha de Bronze',          'Bucha autolubrificante para mancais de deslizamento',           'Bronze TM23, diâmetro interno 30mm, externo 40mm, comprimento 60mm',      28.00, 'usinagem'],
+      ['Parafuso Especial M20',    'Parafuso de alta resistência para aplicações estruturais',      'Aço grau 12.9, rosca M20x2.5, comprimento 150mm, zincado',               18.50, 'usinagem'],
+      ['Chapa Perfurada 3mm',      'Chapa metálica com padrão de furação para filtragem',           'Aço inox 304, espessura 3mm, furos Ø6mm, passo 10mm',                    95.00, 'corte'],
+      ['Suporte Soldado L200',     'Suporte estrutural em L para fixação de equipamentos',          'Aço A36, abas 200x200mm, espessura 8mm, pintura epóxi',                  72.00, 'solda'],
+      ['Tampa de Inspeção',        'Tampa removível para acesso a componentes internos',            'Alumínio 6061-T6, 300x300mm, vedação EPDM, 4 fixadores',                 110.00, 'usinagem'],
+      ['Pino de Cisalhamento',     'Pino de segurança para proteção de componentes',               'Aço 1020, diâmetro 12mm, comprimento 80mm, têmpera superficial',          15.00, 'usinagem'],
+      ['Estrutura Tubular 40x40',  'Estrutura em tubo quadrado para suporte de equipamentos',       'Tubo quadrado 40x40x3mm, aço carbono, galvanizado a fogo',               180.00, 'solda'],
+      ['Polias de Transmissão',    'Polia para transmissão por correia V em redutores',             'Ferro fundido GH-190, diâmetro 200mm, canal B simples',                   95.00, 'fundição'],
+      ['Garra de Fixação CNC',     'Garra de fixação para peças em centros de usinagem CNC',       'Aço ferramenta D2, dureza 60 HRC, mandíbulas intercambiáveis',            320.00, 'usinagem'],
+      ['Acoplamento Elástico',     'Acoplamento com elemento elástico para absorção de choques',   'Corpo em aço, elemento em poliuretano Shore 80A, torque máx 150Nm',       145.00, 'montagem'],
+      ['Suporte Mancal SNL 508',   'Suporte de mancal para rolamento de rolos cônico',              'Ferro fundido, alinhamento automático, fixação 4 parafusos M16',           88.00, 'fundição'],
+      ['Cilindro Hidráulico 50mm', 'Cilindro hidráulico de simples efeito para automação',          'Diâmetro êmbolo 50mm, curso 200mm, pressão máx 200 bar, vedação NBR',    420.00, 'montagem'],
     ];
 
-    for (const [nome, desc, ing, precos, cat] of pizzas) {
-      run('INSERT INTO pizzas (nome, descricao, ingredientes, precos, categoria) VALUES (?, ?, ?, ?, ?)',
-        [nome, desc, ing, JSON.stringify(precos), cat]);
+    for (const [nome, desc, espec, preco, cat] of produtos) {
+      run('INSERT INTO produtos (nome, descricao, especificacoes, preco_unitario, categoria) VALUES (?, ?, ?, ?, ?)',
+        [nome, desc, espec, preco, cat]);
     }
-    console.log('✅ 20 pizzas criadas');
+    console.log('✅ 15 produtos criados');
 
     console.log('======================================');
-    console.log('🔥 SEED EXECUTADO COM SUCESSO!');
+    console.log('🏭 SEED EXECUTADO COM SUCESSO!');
     console.log('======================================');
-    console.log('Login: admin@pizzaria.com | Senha: 123456');
+    console.log('Admin:    admin@metaltech.com   | Senha: 123456');
+    console.log('Operador: operador@metaltech.com | Senha: 123456');
+    console.log('Líder:    lider@metaltech.com   | Senha: 123456');
     console.log('======================================');
     process.exit(0);
   } catch (err) {

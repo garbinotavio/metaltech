@@ -1,5 +1,6 @@
 // ============================================================
-// Usuario.js — Model de Usuário (sql.js)
+// Usuario.js — Model de Usuário (FactoryTrack)
+// Perfis: Administrador, Operador, Lider
 // ============================================================
 
 const { ready, query, run, get } = require('../database/sqlite');
@@ -44,7 +45,7 @@ const Usuario = {
     return formatarUsuario(row);
   },
 
-  async create({ nome, email, senha, perfil = 'Atendente' }) {
+  async create({ nome, email, senha, perfil = 'Operador' }) {
     await ready;
     const hash = await bcrypt.hash(senha, 10);
     const info = run(

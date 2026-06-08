@@ -1,12 +1,13 @@
 const API = '/api';
 
-let cPizzas   = [];
-let cClientes = [];
+let cProdutos  = [];
+let cClientes  = [];
+let _statusFiltro = '';
 
-let TOKEN          = localStorage.getItem('pz_token') || '';
-let USUARIO_LOGADO = JSON.parse(localStorage.getItem('pz_usuario') || 'null');
-let mesaEmFechamento = null;
+let TOKEN          = localStorage.getItem('ft_token') || '';
+let USUARIO_LOGADO = JSON.parse(localStorage.getItem('ft_usuario') || 'null');
 
+// ═══════════════════════════════════ AUTH ══════════════════
 async function fazerLogin() {
   const email = document.getElementById('l-email').value.trim();
   const senha = document.getElementById('l-senha').value;
@@ -35,8 +36,8 @@ async function fazerLogin() {
 
     TOKEN = data.token;
     USUARIO_LOGADO = data.usuario;
-    localStorage.setItem('pz_token', TOKEN);
-    localStorage.setItem('pz_usuario', JSON.stringify(data.usuario));
+    localStorage.setItem('ft_token', TOKEN);
+    localStorage.setItem('ft_usuario', JSON.stringify(data.usuario));
 
     aplicarPerfil(data.usuario);
     document.body.classList.add('logado');
@@ -53,8 +54,8 @@ async function fazerLogin() {
 function sair() {
   TOKEN = '';
   USUARIO_LOGADO = null;
-  localStorage.removeItem('pz_token');
-  localStorage.removeItem('pz_usuario');
+  localStorage.removeItem('ft_token');
+  localStorage.removeItem('ft_usuario');
   document.body.classList.remove('logado');
   document.getElementById('l-senha').value = '';
 }
@@ -64,11 +65,12 @@ if (TOKEN && USUARIO_LOGADO) {
   document.body.classList.add('logado');
 }
 
+// ═══════════════════════════════════ HELPERS ═══════════════
 function toast(msg, tipo = 'ok') {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.className   = `show ${tipo}`;
-  setTimeout(() => el.className = '', 3000);
+  setTimeout(() => el.className = '', 3200);
 }
 
 function abrir(id)  { document.getElementById(id).classList.add('open'); }
@@ -84,13 +86,23 @@ function R$(v) {
 
 function badge(s) {
   const r = {
-    recebido:     '📥 Recebido',
-    em_preparo:   '👨‍🍳 Em Preparo',
-    saiu_entrega: '🛵 Saiu p/ Entrega',
-    entregue:     '✅ Entregue',
-    cancelado:    '❌ Cancelado',
+    aguardando_producao: '⏳ Aguardando',
+    em_producao:         '⚙️ Em Produção',
+    finalizado:          '✅ Finalizado',
+    cancelado:           '❌ Cancelado',
   };
   return `<span class="badge b-${s}">${r[s] || s}</span>`;
+}
+
+function formatarPrazo(prazo) {
+  if (!prazo) return '<span style="color:var(--muted)">—</span>';
+  const d     = new Date(prazo + 'T00:00:00');
+  const hoje  = new Date(); hoje.setHours(0,0,0,0);
+  const diff  = Math.ceil((d - hoje) / (1000 * 60 * 60 * 24));
+  const str   = d.toLocaleDateString('pt-BR');
+  if (diff < 0)  return `<span class="prazo-vencido">⚠️ ${str}</span>`;
+  if (diff <= 3) return `<span class="prazo-alerta">🔔 ${str}</span>`;
+  return `<span>${str}</span>`;
 }
 
 async function api(method, url, body) {
@@ -111,13 +123,14 @@ async function api(method, url, body) {
   return data;
 }
 
+// ═══════════════════════════════════ PERFIL ════════════════
 function aplicarPerfil(usuario) {
   document.getElementById('sb-nome').textContent   = usuario.nome;
   document.getElementById('sb-perfil').textContent = usuario.perfil;
 
   const perfil  = usuario.perfil;
   const isAdmin = perfil === 'Administrador';
-  const isGar   = perfil === 'Garcom';
+  const isLider = perfil === 'Lider';
 
   function show(id, visible, type = 'flex') {
     const el = document.getElementById(id);
@@ -130,375 +143,496 @@ function aplicarPerfil(usuario) {
 
   show('menu-usuarios',   isAdmin, 'block');
   show('btn-usuarios',    isAdmin, 'flex');
-  show('sb-group-garcom', isGar,   'block');
-  show('btn-nav-mesas',   isGar,   'flex');
+  show('sb-group-lider',  isLider, 'block');
+  show('btn-nav-producao', isLider, 'flex');
 
-  showEl(document.querySelector('[onclick*="clientes"]'),  !isGar);
-  showEl(document.querySelector('[onclick*="pedidos"]'),   !isGar);
-  showEl(document.querySelector('[onclick*="dashboard"]'), !isGar);
-  showEl(document.querySelector('.sb-group'), !isGar, 'block');
+  // Líderes não veem clientes nem dashboard
+  showEl(document.querySelector('[onclick*="clientes"]'),  !isLider);
+  showEl(document.querySelector('[onclick*="ordens"]'),    !isLider);
+  showEl(document.querySelector('[onclick*="dashboard"]'), !isLider);
+  showEl(document.querySelector('.sb-group'), !isLider, 'block');
 
-  const labelPizzas = document.getElementById('nav-pizzas-label');
-  if (labelPizzas) labelPizzas.textContent = isGar ? 'Cardápio' : 'Pizzas';
+  const labelProdutos = document.getElementById('nav-produtos-label');
+  if (labelProdutos) labelProdutos.textContent = isLider ? 'Catálogo' : 'Produtos';
 
-  const tituloPizzas = document.getElementById('pg-pizzas-titulo');
-  const subPizzas    = document.getElementById('pg-pizzas-sub');
-  if (tituloPizzas) tituloPizzas.textContent = isGar ? 'Cardápio' : 'Pizzas';
-  if (subPizzas)    subPizzas.textContent    = isGar ? 'Pizzas disponíveis hoje' : 'Gerencie o cardápio';
-  show('btn-nova-pizza', !isGar, 'inline-flex');
+  const tituloProdutos = document.getElementById('pg-produtos-titulo');
+  const subProdutos    = document.getElementById('pg-produtos-sub');
+  if (tituloProdutos) tituloProdutos.textContent = isLider ? 'Catálogo de Peças' : 'Produtos';
+  if (subProdutos)    subProdutos.textContent    = isLider ? 'Peças disponíveis para produção' : 'Gerencie o catálogo de peças';
+  show('btn-novo-produto', !isLider, 'inline-flex');
 
-  show('stat-fat', !isGar, 'block');
-  show('stat-cli', !isGar, 'block');
+  show('stat-fat', !isLider, 'block');
+  show('stat-cli', !isLider, 'block');
 
-  if (isGar) {
-    ir('mesas', document.getElementById('btn-nav-mesas'));
+  if (isLider) {
+    ir('producao', document.getElementById('btn-nav-producao'));
   } else {
     ir('dashboard', document.querySelector('[onclick*="dashboard"]'));
   }
 }
 
-async function carregarMesas(mesaFiltro = null) {
-  const grid = document.getElementById('grid-mesas');
-  grid.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
+// ═══════════════════════════════════ NAVEGAÇÃO ═════════════
+function ir(pg, btn) {
+  const perfil = document.getElementById('sb-perfil').textContent;
 
-  document.getElementById('mesas-sub').textContent =
-    `Olá, ${USUARIO_LOGADO?.nome}! Seus pedidos ativos.`;
+  if (pg === 'usuarios' && perfil !== 'Administrador') {
+    toast('Acesso restrito a Administradores', 'err'); return;
+  }
+  if (pg === 'producao' && perfil !== 'Lider') {
+    toast('Área exclusiva para Líderes de Produção', 'err'); return;
+  }
+  if (perfil === 'Lider' && !['producao','produtos'].includes(pg)) {
+    toast('Acesso não permitido', 'err'); return;
+  }
+
+  document.querySelectorAll('.secao').forEach(s => s.classList.remove('ativa'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('ativo'));
+  document.getElementById('pg-' + pg).classList.add('ativa');
+  if (btn) btn.classList.add('ativo');
+
+  const loaders = {
+    dashboard: carregarDashboard,
+    ordens:    carregarOrdens,
+    produtos:  carregarProdutos,
+    clientes:  carregarClientes,
+    usuarios:  carregarUsuarios,
+    producao:  carregarProducao,
+  };
+  if (loaders[pg]) loaders[pg]();
+}
+
+// ═══════════════════════════════════ DASHBOARD ═════════════
+async function carregarDashboard() {
+  const h = new Date().getHours();
+  const s = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  document.getElementById('dash-sub').textContent = `${s}! Aqui está o resumo da produção.`;
 
   try {
-    const url = `/pedidos?garcom=${USUARIO_LOGADO.id}`;
-    const pedidos = await api('GET', url);
+    const [produtos, clientes, ordens] = await Promise.all([
+      api('GET', '/produtos'),
+      api('GET', '/clientes'),
+      api('GET', '/ordens'),
+    ]);
 
-    const ativos = pedidos.filter(p => !['entregue','cancelado'].includes(p.status));
+    cProdutos  = produtos;
+    cClientes  = clientes;
 
-    document.getElementById('g-ped').textContent     = pedidos.length;
-    document.getElementById('g-ped-sub').textContent = `${ativos.length} ativo(s)`;
+    document.getElementById('s-pro').textContent  = produtos.length;
+    document.getElementById('s-cli').textContent  = clientes.length;
+    document.getElementById('s-ord').textContent  = ordens.length;
+    document.getElementById('s-prod').textContent =
+      ordens.filter(o => o.status === 'em_producao').length;
+    document.getElementById('s-fat').textContent  =
+      R$(ordens.reduce((acc, o) => acc + (o.total || 0), 0));
 
-    const mesasAtivas = new Set(ativos.map(p => p.mesa).filter(Boolean));
-    document.getElementById('g-mesas').textContent   = mesasAtivas.size;
-    document.getElementById('g-preparo').textContent = ativos.filter(p => p.status === 'em_preparo').length;
-    document.getElementById('g-prontos').textContent = ativos.filter(p => p.status === 'saiu_entrega').length;
+    const pend = ordens.filter(o => !['finalizado','cancelado'].includes(o.status)).length;
+    document.getElementById('s-ord-sub').textContent = `${pend} pendente(s)`;
 
-    const botoes = document.getElementById('mesa-botoes');
-    botoes.innerHTML = Array.from({length: 10}, (_, i) => {
-      const n      = i + 1;
-      const temPed = mesasAtivas.has(n);
-      const ativo  = mesaFiltro === n;
-      return `
-        <button class="btn btn-sm ${ativo ? 'btn-red' : temPed ? 'btn-green' : 'btn-ghost'}"
-          onclick="carregarMesas(${n})"
-          title="${temPed ? 'Mesa com pedido ativo' : 'Mesa livre'}">
-          ${n}${temPed ? ' 🔴' : ''}
-        </button>`;
-    }).join('');
+    const elO = document.getElementById('dash-ordens');
+    elO.innerHTML = ordens.slice(0, 8).map(o => `
+      <div class="mini-row">
+        <div>
+          <div class="mn">#${String(o.numeroOrdem || '?').padStart(3,'0')} · ${o.cliente?.nome || '—'}</div>
+          <div class="mc">${new Date(o.createdAt).toLocaleString('pt-BR')} · Prazo: ${o.prazo ? new Date(o.prazo + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</div>
+        </div>
+        <div style="text-align:right">
+          ${badge(o.status)}<br>
+          <small style="color:var(--muted)">${R$(o.total)}</small>
+        </div>
+      </div>`).join('') ||
+      '<div class="empty"><span class="ei">📋</span>Nenhuma ordem ainda</div>';
 
-    const pedidosFiltrados = mesaFiltro
-      ? ativos.filter(p => p.mesa === mesaFiltro)
-      : ativos;
+    const elC = document.getElementById('dash-catalogo');
+    elC.innerHTML = produtos.filter(p => p.disponivel).slice(0, 8).map(p => `
+      <div class="mini-row">
+        <span>🔩 ${p.nome}</span>
+        <small style="color:var(--muted)">${R$(p.precoUnitario)}</small>
+      </div>`).join('') ||
+      '<div class="empty"><span class="ei">🔩</span>Nenhum produto</div>';
 
-    if (!pedidosFiltrados.length) {
+  } catch (e) { toast('Erro dashboard: ' + e.message, 'err'); }
+}
+
+// ═══════════════════════════════════ ORDENS ════════════════
+let _todasOrdens = [];
+
+async function carregarOrdens() {
+  const el = document.getElementById('tbl-ordens');
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
+  try {
+    _todasOrdens = await api('GET', '/ordens');
+    renderizarOrdens();
+  } catch (e) {
+    el.innerHTML = `<div class="empty" style="color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function filtrarStatus(status, btn) {
+  _statusFiltro = status;
+  document.querySelectorAll('.filtro-status').forEach(b => b.classList.remove('ativo'));
+  if (btn) btn.classList.add('ativo');
+  renderizarOrdens();
+}
+
+function renderizarOrdens() {
+  const el = document.getElementById('tbl-ordens');
+  const ordens = _statusFiltro
+    ? _todasOrdens.filter(o => o.status === _statusFiltro)
+    : _todasOrdens;
+
+  if (!ordens.length) {
+    el.innerHTML = '<div class="empty"><span class="ei">📋</span>Nenhuma ordem encontrada</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Cliente</th><th>Itens</th>
+          <th>Total</th><th>Pagamento</th><th>Prazo</th>
+          <th>Status</th><th>Data</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ordens.map(o => `
+          <tr>
+            <td><strong style="color:var(--blue)">#${String(o.numeroOrdem||'?').padStart(3,'0')}</strong></td>
+            <td>
+              <strong>${o.cliente?.nome || '—'}</strong><br>
+              <small style="color:var(--muted)">${o.cliente?.telefone || ''}</small>
+            </td>
+            <td style="font-size:.76rem">
+              ${o.itens.map(it => `${it.quantidade}x ${it.nomeProduto || '?'}`).join('<br>')}
+            </td>
+            <td><strong style="color:var(--gold)">${R$(o.total)}</strong></td>
+            <td style="font-size:.76rem">${(o.formaPagamento || '—').replace('_', ' ')}</td>
+            <td style="font-size:.76rem">${formatarPrazo(o.prazo)}</td>
+            <td>${badge(o.status)}</td>
+            <td style="font-size:.7rem;color:var(--muted)">${new Date(o.createdAt).toLocaleString('pt-BR')}</td>
+            <td>
+              <div style="display:flex;gap:5px">
+                <button class="btn btn-blue btn-sm" onclick="abrirStatus('${o._id}','${o.status}')">📝</button>
+                <button class="btn btn-danger btn-sm" onclick="deletarOrdem('${o._id}')">🗑️</button>
+              </div>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function abrirOrdem() {
+  try {
+    if (!cProdutos.length)  cProdutos  = await api('GET', '/produtos');
+    if (!cClientes.length) cClientes  = await api('GET', '/clientes');
+  } catch (e) { toast('Erro ao carregar dados', 'err'); return; }
+
+  document.getElementById('ord-cli').innerHTML =
+    '<option value="">— Selecione o cliente —</option>' +
+    cClientes.map(c => `<option value="${c._id}">${c.nome} · ${c.telefone}</option>`).join('');
+
+  document.getElementById('itens-ordem-lista').innerHTML = '';
+  document.getElementById('ord-prazo').value = '';
+  document.getElementById('ord-obs').value   = '';
+  document.getElementById('ord-pag').value   = 'a_prazo';
+  document.getElementById('ord-tot').textContent = 'R$ 0,00';
+
+  addItemOrdem();
+  abrir('m-ordem');
+}
+
+function addItemOrdem() {
+  const d = document.createElement('div');
+  d.className = 'item-row';
+  const opts = cProdutos.filter(p => p.disponivel)
+    .map(p => `<option value="${p._id}" data-preco="${p.precoUnitario||0}">${p.nome}</option>`).join('');
+  d.innerHTML = `
+    <select class="ip" onchange="recalcOrdem()">
+      <option value="">Selecione...</option>${opts}
+    </select>
+    <input class="iq" type="number" value="1" min="1" oninput="recalcOrdem()">
+    <div class="is" style="font-size:.8rem;text-align:right;color:var(--muted)">R$ 0,00</div>
+    <button class="btn-rm" onclick="this.parentElement.remove();recalcOrdem()">×</button>`;
+  document.getElementById('itens-ordem-lista').appendChild(d);
+}
+
+function recalcOrdem() {
+  let total = 0;
+  document.querySelectorAll('#itens-ordem-lista .item-row').forEach(row => {
+    const sel   = row.querySelector('.ip');
+    const qtd   = parseInt(row.querySelector('.iq').value) || 0;
+    const preco = parseFloat(sel.options[sel.selectedIndex]?.dataset?.preco || 0);
+    const s     = preco * qtd;
+    total      += s;
+    row.querySelector('.is').textContent = R$(s);
+  });
+  document.getElementById('ord-tot').textContent = R$(total);
+}
+
+async function salvarOrdem() {
+  const cliId = document.getElementById('ord-cli').value;
+  if (!cliId) { toast('Selecione um cliente', 'err'); return; }
+
+  const itens = []; let valido = true;
+  document.querySelectorAll('#itens-ordem-lista .item-row').forEach(row => {
+    const pid = row.querySelector('.ip').value;
+    if (!pid) { valido = false; return; }
+    itens.push({
+      produto:    pid,
+      quantidade: parseInt(row.querySelector('.iq').value) || 1,
+    });
+  });
+
+  if (!valido || !itens.length) { toast('Adicione ao menos um item válido', 'err'); return; }
+
+  try {
+    await api('POST', '/ordens', {
+      cliente:        cliId,
+      itens,
+      formaPagamento: document.getElementById('ord-pag').value,
+      observacoes:    document.getElementById('ord-obs').value,
+      prazo:          document.getElementById('ord-prazo').value || null,
+      origem:         'administrativo',
+    });
+    toast('Ordem registrada! 🏭');
+    fechar('m-ordem');
+    carregarOrdens();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+function abrirStatus(id, status) {
+  document.getElementById('st-id').value  = id;
+  document.getElementById('st-val').value = status;
+  abrir('m-status');
+}
+
+async function salvarStatus() {
+  const id     = document.getElementById('st-id').value;
+  const status = document.getElementById('st-val').value;
+  try {
+    await api('PATCH', '/ordens/' + id + '/status', { status });
+    toast('Status atualizado!');
+    fechar('m-status');
+    // Atualiza a view correta dependendo de qual está aberta
+    const pgAtiva = document.querySelector('.secao.ativa')?.id;
+    if (pgAtiva === 'pg-ordens')   carregarOrdens();
+    if (pgAtiva === 'pg-producao') carregarProducao();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+async function deletarOrdem(id) {
+  if (!confirm('Deletar esta ordem de produção?')) return;
+  try {
+    await api('DELETE', '/ordens/' + id);
+    toast('Ordem deletada!');
+    carregarOrdens();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+// ═══════════════════════════════════ PRODUÇÃO (LÍDER) ══════
+async function carregarProducao() {
+  const grid = document.getElementById('grid-producao');
+  grid.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
+
+  document.getElementById('producao-sub').textContent =
+    `Olá, ${USUARIO_LOGADO?.nome}! Suas ordens de produção.`;
+
+  try {
+    const ordens = await api('GET', `/ordens?lider=${USUARIO_LOGADO.id}`);
+    const ativas = ordens.filter(o => !['finalizado','cancelado'].includes(o.status));
+
+    document.getElementById('l-ord').textContent   = ordens.length;
+    document.getElementById('l-ord-sub').textContent = `${ativas.length} ativa(s)`;
+    document.getElementById('l-aguard').textContent =
+      ordens.filter(o => o.status === 'aguardando_producao').length;
+    document.getElementById('l-prod').textContent  =
+      ordens.filter(o => o.status === 'em_producao').length;
+    document.getElementById('l-fin').textContent   =
+      ordens.filter(o => o.status === 'finalizado').length;
+
+    if (!ativas.length) {
       grid.innerHTML = `
         <div class="empty" style="grid-column:1/-1">
-          <span class="ei">🪑</span>
-          Nenhum pedido ativo no momento.<br>
-          <button class="btn btn-red" style="margin-top:12px" onclick="abrirPedidoMesa()">
-            + Abrir primeiro pedido
+          <span class="ei">⚙️</span>
+          Nenhuma ordem ativa no momento.<br>
+          <button class="btn btn-blue" style="margin-top:12px" onclick="abrirOrdemLider()">
+            + Registrar primeira ordem
           </button>
         </div>`;
       return;
     }
 
-    const porMesa = {};
-    pedidosFiltrados.forEach(p => {
-      const key = p.mesa || 'balcão';
-      if (!porMesa[key]) porMesa[key] = [];
-      porMesa[key].push(p);
-    });
-
-    grid.innerHTML = Object.entries(porMesa).map(([mesa, peds]) => {
-      const totalMesa  = peds.reduce((s, p) => s + (p.total || 0), 0);
-      const todosItens = peds.flatMap(p => p.itens);
-      const itensAgrup = {};
-      todosItens.forEach(it => {
-        const k = `${it.nomePizza} (${it.tamanho})`;
-        itensAgrup[k] = (itensAgrup[k] || 0) + it.quantidade;
-      });
-      const statusAtual = peds[peds.length - 1]?.status;
-
-      return `
-        <div class="mesa-card">
-          <div class="mesa-card-head">
-            <div>
-              <div class="mesa-num">Mesa ${mesa}</div>
-              <div style="font-size:.72rem;color:var(--muted);margin-top:2px">
-                ${peds.length} pedido(s) · ${peds[0]?.cliente?.nome || 'Sem cadastro'}
-              </div>
-            </div>
-            ${badge(statusAtual)}
-          </div>
-          <div class="mesa-card-body">
-            ${Object.entries(itensAgrup).map(([nome, qtd]) => `
-              <div class="mesa-item">
-                <strong>${qtd}x ${nome}</strong>
-              </div>`).join('')}
-            <div class="mesa-total">
-              <span style="color:var(--muted)">Total da mesa</span>
-              <span style="color:var(--gold)">${R$(totalMesa)}</span>
+    grid.innerHTML = ativas.map(o => `
+      <div class="ordem-card">
+        <div class="ordem-card-head">
+          <div>
+            <div class="ordem-num">#${String(o.numeroOrdem||'?').padStart(3,'0')}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:2px">
+              ${o.cliente?.nome || 'Sem cliente'} · Prazo: ${o.prazo ? new Date(o.prazo + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
             </div>
           </div>
-          <div class="mesa-card-foot">
-            <button class="btn btn-ghost btn-sm" style="flex:1"
-              onclick="abrirPedidoMesa(${mesa})">
-              + Item
-            </button>
-            <button class="btn btn-blue btn-sm"
-              onclick="abrirStatus('${peds[peds.length-1]?._id}','${statusAtual}')">
-              📝 Status
-            </button>
-            <button class="btn btn-green btn-sm"
-              onclick="abrirFecharMesa(${mesa}, ${totalMesa}, '${peds.map(p=>p._id).join(',')}')">
-              ✅ Fechar
-            </button>
+          ${badge(o.status)}
+        </div>
+        <div class="ordem-card-body">
+          ${o.itens.map(it => `
+            <div class="ordem-item">
+              <strong>${it.quantidade}x ${it.nomeProduto}</strong>
+              <span>${R$(it.subtotal)}</span>
+            </div>`).join('')}
+          <div class="ordem-total">
+            <span style="color:var(--muted)">Total</span>
+            <span style="color:var(--gold)">${R$(o.total)}</span>
           </div>
-        </div>`;
-    }).join('');
+          ${o.observacoes ? `<div style="font-size:.72rem;color:var(--muted);margin-top:6px">📝 ${o.observacoes}</div>` : ''}
+        </div>
+        <div class="ordem-card-foot">
+          <button class="btn btn-blue btn-sm" style="flex:1"
+            onclick="abrirStatus('${o._id}','${o.status}')">
+            📝 Atualizar Status
+          </button>
+        </div>
+      </div>`).join('');
 
   } catch (e) {
     grid.innerHTML = `<div class="empty" style="color:var(--red)">${e.message}</div>`;
   }
 }
 
-async function abrirPedidoMesa(mesaNum = null) {
+async function abrirOrdemLider() {
   try {
-    if (!cPizzas.length)   cPizzas   = await api('GET', '/pizzas');
-    if (!cClientes.length) cClientes = await api('GET', '/clientes');
+    if (!cProdutos.length)  cProdutos  = await api('GET', '/produtos');
+    if (!cClientes.length) cClientes  = await api('GET', '/clientes');
   } catch (e) { toast('Erro ao carregar dados', 'err'); return; }
 
-  document.getElementById('pm-cli').innerHTML =
-    '<option value="">— Sem cadastro —</option>' +
-    cClientes.map(c => `<option value="${c._id}">${c.nome} · ${c.telefone}</option>`).join('');
+  document.getElementById('ol-cli').innerHTML =
+    '<option value="">— Sem cliente —</option>' +
+    cClientes.map(c => `<option value="${c._id}">${c.nome}</option>`).join('');
 
-  document.getElementById('pm-mesa').value = mesaNum || '';
-  document.getElementById('itens-mesa-lista').innerHTML = '';
-  document.getElementById('pm-obs').value  = '';
-  document.getElementById('pm-sub').textContent = 'R$ 0,00';
-  document.getElementById('pm-tot').textContent = 'R$ 0,00';
+  document.getElementById('itens-ordem-lider-lista').innerHTML = '';
+  document.getElementById('ol-prazo').value = '';
+  document.getElementById('ol-obs').value   = '';
+  document.getElementById('ol-tot').textContent = 'R$ 0,00';
 
-  addItemMesa();
-  abrir('m-pedido-mesa');
+  addItemOrdemLider();
+  abrir('m-ordem-lider');
 }
 
-function addItemMesa() {
+function addItemOrdemLider() {
   const d = document.createElement('div');
   d.className = 'item-row';
-  const opts = cPizzas.filter(p => p.disponivel)
-    .map(p => `<option value="${p._id}"
-      data-p="${p.precos?.P||0}" data-m="${p.precos?.M||0}" data-g="${p.precos?.G||0}">
-      ${p.nome}</option>`).join('');
+  const opts = cProdutos.filter(p => p.disponivel)
+    .map(p => `<option value="${p._id}" data-preco="${p.precoUnitario||0}">${p.nome}</option>`).join('');
   d.innerHTML = `
-    <select class="ip" onchange="recalcMesa()"><option value="">Selecione...</option>${opts}</select>
-    <select class="it" onchange="recalcMesa()">
-      <option value="P">P</option><option value="M">M</option><option value="G" selected>G</option>
+    <select class="ip" onchange="recalcOrdemLider()">
+      <option value="">Selecione...</option>${opts}
     </select>
-    <input class="iq" type="number" value="1" min="1" oninput="recalcMesa()">
+    <input class="iq" type="number" value="1" min="1" oninput="recalcOrdemLider()">
     <div class="is" style="font-size:.8rem;text-align:right;color:var(--muted)">R$ 0,00</div>
-    <button class="btn-rm" onclick="this.parentElement.remove();recalcMesa()">×</button>`;
-  document.getElementById('itens-mesa-lista').appendChild(d);
+    <button class="btn-rm" onclick="this.parentElement.remove();recalcOrdemLider()">×</button>`;
+  document.getElementById('itens-ordem-lider-lista').appendChild(d);
 }
 
-function recalcMesa() {
-  let sub = 0;
-  document.querySelectorAll('#itens-mesa-lista .item-row').forEach(row => {
-    const sel = row.querySelector('.ip');
-    const tam = row.querySelector('.it').value.toLowerCase();
-    const qtd = parseInt(row.querySelector('.iq').value) || 0;
-    const pc  = parseFloat(sel.options[sel.selectedIndex]?.dataset?.[tam] || 0);
-    const s   = pc * qtd; sub += s;
+function recalcOrdemLider() {
+  let total = 0;
+  document.querySelectorAll('#itens-ordem-lider-lista .item-row').forEach(row => {
+    const sel   = row.querySelector('.ip');
+    const qtd   = parseInt(row.querySelector('.iq').value) || 0;
+    const preco = parseFloat(sel.options[sel.selectedIndex]?.dataset?.preco || 0);
+    const s     = preco * qtd;
+    total      += s;
     row.querySelector('.is').textContent = R$(s);
   });
-  document.getElementById('pm-sub').textContent = R$(sub);
-  document.getElementById('pm-tot').textContent = R$(sub);
+  document.getElementById('ol-tot').textContent = R$(total);
 }
 
-async function salvarPedidoMesa() {
-  const mesa = parseInt(document.getElementById('pm-mesa').value) || 0;
-  if (!mesa || mesa < 1) { toast('Selecione a mesa', 'err'); return; }
-
-  const cliId = document.getElementById('pm-cli').value || null;
+async function salvarOrdemLider() {
   const itens = []; let valido = true;
-  document.querySelectorAll('#itens-mesa-lista .item-row').forEach(row => {
+  document.querySelectorAll('#itens-ordem-lider-lista .item-row').forEach(row => {
     const pid = row.querySelector('.ip').value;
     if (!pid) { valido = false; return; }
     itens.push({
-      pizza:      pid,
-      tamanho:    row.querySelector('.it').value,
+      produto:    pid,
       quantidade: parseInt(row.querySelector('.iq').value) || 1,
     });
   });
 
   if (!valido || !itens.length) { toast('Adicione ao menos um item', 'err'); return; }
 
-  let clienteId = cliId;
+  let clienteId = document.getElementById('ol-cli').value || null;
+
+  // Se não selecionou cliente, cria um genérico "Produção Interna"
   if (!clienteId) {
     try {
-      const todos = await api('GET', `/clientes?busca=Mesa ${mesa}`);
-      const existe = todos.find(c => c.nome === `Mesa ${mesa}`);
+      const todos  = await api('GET', '/clientes?busca=Produção Interna');
+      const existe = todos.find(c => c.nome === 'Produção Interna');
       if (existe) {
         clienteId = existe._id;
       } else {
-        const novo = await api('POST', '/clientes', { nome: `Mesa ${mesa}`, telefone: 'Mesa' });
-        clienteId = novo._id;
-        cClientes = [];
+        const novo = await api('POST', '/clientes', { nome: 'Produção Interna', telefone: 'Interno' });
+        clienteId  = novo._id;
+        cClientes  = [];
       }
-    } catch (e) { toast('Erro ao registrar mesa', 'err'); return; }
+    } catch (e) { toast('Erro ao registrar cliente', 'err'); return; }
   }
 
   try {
-    await api('POST', '/pedidos', {
+    await api('POST', '/ordens', {
       cliente:        clienteId,
       itens,
-      taxaEntrega:    0,
-      formaPagamento: 'pix',
-      observacoes:    document.getElementById('pm-obs').value,
-      mesa,
-      origem:         'mesa',
-      garcom:         USUARIO_LOGADO?.id,
+      formaPagamento: 'a_prazo',
+      observacoes:    document.getElementById('ol-obs').value,
+      prazo:          document.getElementById('ol-prazo').value || null,
+      origem:         'producao',
+      lider:          USUARIO_LOGADO?.id,
     });
-    toast(`Pedido lançado na Mesa ${mesa}! 🍕`);
-    fechar('m-pedido-mesa');
-    carregarMesas();
+    toast('Ordem registrada no chão de fábrica! ⚙️');
+    fechar('m-ordem-lider');
+    carregarProducao();
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }
 
-function abrirFecharMesa(mesa, total, ids) {
-  mesaEmFechamento = { mesa, total, ids: ids.split(',') };
-  document.getElementById('fm-titulo').textContent = `Fechar Mesa ${mesa}`;
-  document.getElementById('fm-total').textContent  = R$(total);
-  document.getElementById('fm-resumo').innerHTML   =
-    `<p style="font-size:.82rem;color:var(--muted)">
-      ${mesaEmFechamento.ids.length} pedido(s) serão marcados como <strong style="color:var(--green)">Entregue</strong>.
-    </p>`;
-  abrir('m-fechar-mesa');
-}
-
-async function confirmarFechamento() {
-  if (!mesaEmFechamento) return;
-
-  try {
-    await Promise.all(
-      mesaEmFechamento.ids.map(id =>
-        api('PATCH', `/pedidos/${id}/status`, { status: 'entregue' })
-      )
-    );
-    toast(`Mesa ${mesaEmFechamento.mesa} fechada! ✅`);
-    fechar('m-fechar-mesa');
-    mesaEmFechamento = null;
-    carregarMesas();
-  } catch (e) { toast('Erro: ' + e.message, 'err'); }
-}
-
-function ir(pg, btn) {
-  const perfil = document.getElementById('sb-perfil').textContent;
-  if (pg === 'usuarios' && perfil !== 'Administrador') {
-    toast('Acesso restrito a Administradores', 'err'); return;
-  }
-  if (pg === 'mesas' && perfil !== 'Garcom') {
-    toast('Área exclusiva para Garçom', 'err'); return;
-  }
-  if (perfil === 'Garcom' && !['mesas','pizzas'].includes(pg)) {
-    toast('Acesso não permitido para Garçom', 'err'); return;
-  }
-  document.querySelectorAll('.secao').forEach(s => s.classList.remove('ativa'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('ativo'));
-  document.getElementById('pg-' + pg).classList.add('ativa');
-  if (btn) btn.classList.add('ativo');
-  const loaders = {
-    dashboard: carregarDashboard,
-    pedidos:   carregarPedidos,
-    pizzas:    carregarPizzas,
-    clientes:  carregarClientes,
-    usuarios:  carregarUsuarios,
-    mesas:     carregarMesas,
-  };
-  if (loaders[pg]) loaders[pg]();
-}
-
-async function carregarDashboard() {
-  const h = new Date().getHours();
-  const s = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-  document.getElementById('dash-sub').textContent = `${s}! Aqui está o resumo.`;
-
-  try {
-    const [pizzas, clientes, pedidos] = await Promise.all([
-      api('GET', '/pizzas'),
-      api('GET', '/clientes'),
-      api('GET', '/pedidos'),
-    ]);
-
-    cPizzas   = pizzas;
-    cClientes = clientes;
-
-    document.getElementById('s-piz').textContent = pizzas.length;
-    document.getElementById('s-cli').textContent = clientes.length;
-    document.getElementById('s-ped').textContent = pedidos.length;
-    document.getElementById('s-ent').textContent =
-      pedidos.filter(p => p.status === 'saiu_entrega').length;
-    document.getElementById('s-fat').textContent =
-      R$(pedidos.reduce((acc, p) => acc + (p.total || 0), 0));
-
-    const pend = pedidos.filter(p => !['entregue','cancelado'].includes(p.status)).length;
-    document.getElementById('s-ped-sub').textContent = `${pend} pendente(s)`;
-
-    const elP = document.getElementById('dash-pedidos');
-    elP.innerHTML = pedidos.slice(0, 8).map(p => `
-      <div class="mini-row">
-        <div>
-          <div class="mn">#${String(p.numeroPedido || '?').padStart(3,'0')} · ${p.cliente?.nome || '—'}</div>
-          <div class="mc">${new Date(p.createdAt).toLocaleString('pt-BR')}</div>
-        </div>
-        <div style="text-align:right">
-          ${badge(p.status)}<br>
-          <small style="color:var(--muted)">${R$(p.total)}</small>
-        </div>
-      </div>`).join('') ||
-      '<div class="empty"><span class="ei">📋</span>Nenhum pedido ainda</div>';
-
-    const elC = document.getElementById('dash-cardapio');
-    elC.innerHTML = pizzas.filter(p => p.disponivel).slice(0, 8).map(p => `
-      <div class="mini-row">
-        <span>🍕 ${p.nome}</span>
-        <small style="color:var(--muted)">${R$(p.precos?.G)}</small>
-      </div>`).join('') ||
-      '<div class="empty"><span class="ei">🍕</span>Nenhuma pizza</div>';
-
-  } catch (e) { toast('Erro dashboard: ' + e.message, 'err'); }
-}
-
-async function carregarPizzas() {
-  const el = document.getElementById('tbl-pizzas');
+// ═══════════════════════════════════ PRODUTOS ══════════════
+async function carregarProdutos() {
+  const el = document.getElementById('tbl-produtos');
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
   try {
-    cPizzas = await api('GET', '/pizzas');
-    if (!cPizzas.length) {
-      el.innerHTML = '<div class="empty"><span class="ei">🍕</span>Nenhuma pizza</div>';
+    cProdutos = await api('GET', '/produtos');
+    if (!cProdutos.length) {
+      el.innerHTML = '<div class="empty"><span class="ei">🔩</span>Nenhum produto</div>';
       return;
     }
     el.innerHTML = `
       <table>
         <thead>
-          <tr><th>Nome</th><th>Categoria</th><th>Ingredientes</th><th>P</th><th>M</th><th>G</th><th>Status</th><th>Ações</th>
+          <tr>
+            <th>Produto</th><th>Categoria</th><th>Especificações</th>
+            <th>Preço Unit.</th><th>Status</th><th>Ações</th>
+          </tr>
         </thead>
         <tbody>
-          ${cPizzas.map(p => `
+          ${cProdutos.map(p => `
             <tr>
-              <td><strong>${p.nome}</strong><br><small style="color:var(--muted)">${p.descricao || ''}</small></td>
-              <td><span class="badge b-cat">${p.categoria || 'tradicional'}</span></td>
-              <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.ingredientes}</td>
-              <td>${R$(p.precos?.P)}</td>
-              <td>${R$(p.precos?.M)}</td>
-              <td><strong style="color:var(--gold)">${R$(p.precos?.G)}</strong></td>
-              <td><span class="badge ${p.disponivel ? 'b-on' : 'b-off'}">${p.disponivel ? '✅ Disponível' : '❌ Off'}</span></td>
-              <td><div style="display:flex;gap:5px"><button class="btn btn-ghost btn-sm" onclick="editarPizza('${p._id}')">✏️</button><button class="btn btn-danger btn-sm" onclick="deletarPizza('${p._id}','${p.nome}')">🗑️</button></div></td>
-             </tr>`).join('')}
+              <td>
+                <strong>${p.nome}</strong><br>
+                <small style="color:var(--muted)">${p.descricao || ''}</small>
+              </td>
+              <td><span class="badge b-cat">${p.categoria || 'usinagem'}</span></td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem;color:var(--muted)">
+                ${p.especificacoes || '—'}
+              </td>
+              <td><strong style="color:var(--gold)">${R$(p.precoUnitario)}</strong></td>
+              <td>
+                <span class="badge ${p.disponivel ? 'b-on' : 'b-off'}">
+                  ${p.disponivel ? '✅ Disponível' : '❌ Off'}
+                </span>
+              </td>
+              <td>
+                <div style="display:flex;gap:5px">
+                  <button class="btn btn-ghost btn-sm" onclick="editarProduto('${p._id}')">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deletarProduto('${p._id}','${p.nome}')">🗑️</button>
+                </div>
+              </td>
+            </tr>`).join('')}
         </tbody>
       </table>`;
   } catch (e) {
@@ -506,67 +640,62 @@ async function carregarPizzas() {
   }
 }
 
-function abrirPizza() {
-  document.getElementById('m-pizza-t').textContent = 'Nova Pizza';
-  ['p-id','p-nome','p-ing','p-desc','p-pp','p-pm','p-pg']
+function abrirProduto() {
+  document.getElementById('m-produto-t').textContent = 'Novo Produto';
+  ['pr-id','pr-nome','pr-espec','pr-desc','pr-preco']
     .forEach(id => document.getElementById(id).value = '');
-  document.getElementById('p-cat').value  = 'tradicional';
-  document.getElementById('p-disp').value = 'true';
-  abrir('m-pizza');
+  document.getElementById('pr-cat').value  = 'usinagem';
+  document.getElementById('pr-disp').value = 'true';
+  abrir('m-produto');
 }
 
-function editarPizza(id) {
-  const p = cPizzas.find(x => x._id === id);
+function editarProduto(id) {
+  const p = cProdutos.find(x => x._id == id);
   if (!p) return;
-  document.getElementById('m-pizza-t').textContent = 'Editar Pizza';
-  document.getElementById('p-id').value   = p._id;
-  document.getElementById('p-nome').value = p.nome;
-  document.getElementById('p-ing').value  = p.ingredientes;
-  document.getElementById('p-desc').value = p.descricao || '';
-  document.getElementById('p-pp').value   = p.precos?.P || '';
-  document.getElementById('p-pm').value   = p.precos?.M || '';
-  document.getElementById('p-pg').value   = p.precos?.G || '';
-  document.getElementById('p-cat').value  = p.categoria || 'tradicional';
-  document.getElementById('p-disp').value = String(p.disponivel);
-  abrir('m-pizza');
+  document.getElementById('m-produto-t').textContent = 'Editar Produto';
+  document.getElementById('pr-id').value    = p._id;
+  document.getElementById('pr-nome').value  = p.nome;
+  document.getElementById('pr-espec').value = p.especificacoes || '';
+  document.getElementById('pr-desc').value  = p.descricao || '';
+  document.getElementById('pr-preco').value = p.precoUnitario || '';
+  document.getElementById('pr-cat').value   = p.categoria || 'usinagem';
+  document.getElementById('pr-disp').value  = String(p.disponivel);
+  abrir('m-produto');
 }
 
-async function salvarPizza() {
-  const id   = document.getElementById('p-id').value;
-  const nome = document.getElementById('p-nome').value.trim();
-  const ing  = document.getElementById('p-ing').value.trim();
-  if (!nome || !ing) { toast('Nome e ingredientes são obrigatórios', 'err'); return; }
+async function salvarProduto() {
+  const id    = document.getElementById('pr-id').value;
+  const nome  = document.getElementById('pr-nome').value.trim();
+  const espec = document.getElementById('pr-espec').value.trim();
+  if (!nome || !espec) { toast('Nome e especificações são obrigatórios', 'err'); return; }
 
   const d = {
     nome,
-    ingredientes: ing,
-    descricao:    document.getElementById('p-desc').value.trim(),
-    precos: {
-      P: parseFloat(document.getElementById('p-pp').value) || 0,
-      M: parseFloat(document.getElementById('p-pm').value) || 0,
-      G: parseFloat(document.getElementById('p-pg').value) || 0,
-    },
-    categoria:  document.getElementById('p-cat').value,
-    disponivel: document.getElementById('p-disp').value === 'true',
+    especificacoes: espec,
+    descricao:      document.getElementById('pr-desc').value.trim(),
+    precoUnitario:  parseFloat(document.getElementById('pr-preco').value) || 0,
+    categoria:      document.getElementById('pr-cat').value,
+    disponivel:     document.getElementById('pr-disp').value === 'true',
   };
 
   try {
-    id ? await api('PUT', '/pizzas/' + id, d) : await api('POST', '/pizzas', d);
-    toast(id ? 'Pizza atualizada!' : 'Pizza criada!');
-    fechar('m-pizza');
-    carregarPizzas();
+    id ? await api('PUT', '/produtos/' + id, d) : await api('POST', '/produtos', d);
+    toast(id ? 'Produto atualizado!' : 'Produto cadastrado!');
+    fechar('m-produto');
+    carregarProdutos();
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }
 
-async function deletarPizza(id, nome) {
+async function deletarProduto(id, nome) {
   if (!confirm(`Deletar "${nome}"?`)) return;
   try {
-    await api('DELETE', '/pizzas/' + id);
-    toast('Pizza deletada!');
-    carregarPizzas();
+    await api('DELETE', '/produtos/' + id);
+    toast('Produto deletado!');
+    carregarProdutos();
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }
 
+// ═══════════════════════════════════ CLIENTES ══════════════
 async function carregarClientes(busca = '') {
   const el = document.getElementById('tbl-clientes');
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
@@ -575,21 +704,30 @@ async function carregarClientes(busca = '') {
     cClientes = await api('GET', url);
 
     if (!cClientes.length) {
-      el.innerHTML = '<div class="empty"><span class="ei">👥</span>Nenhum cliente</div>';
+      el.innerHTML = '<div class="empty"><span class="ei">🏢</span>Nenhum cliente</div>';
       return;
     }
 
     el.innerHTML = `
       <table>
-        <thead><tr><th>Nome</th><th>Telefone</th><th>Endereço</th><th>Obs</th><th>Ações</th></tr></thead>
+        <thead>
+          <tr><th>Empresa</th><th>Telefone</th><th>Endereço</th><th>Obs</th><th>Ações</th></tr>
+        </thead>
         <tbody>
           ${cClientes.map(c => `
             <tr>
               <td><strong>${c.nome}</strong></td>
               <td>${c.telefone}</td>
-              <td style="font-size:.76rem;color:var(--muted)">${[c.endereco?.rua, c.endereco?.numero, c.endereco?.bairro, c.endereco?.cidade].filter(Boolean).join(', ') || '—'}</td>
+              <td style="font-size:.76rem;color:var(--muted)">
+                ${[c.endereco?.rua, c.endereco?.numero, c.endereco?.cidade].filter(Boolean).join(', ') || '—'}
+              </td>
               <td style="font-size:.76rem;color:var(--muted)">${c.observacoes || '—'}</td>
-              <td><div style="display:flex;gap:5px"><button class="btn btn-ghost btn-sm" onclick="editarCliente('${c._id}')">✏️</button><button class="btn btn-danger btn-sm" onclick="deletarCliente('${c._id}','${c.nome}')">🗑️</button></div></td>
+              <td>
+                <div style="display:flex;gap:5px">
+                  <button class="btn btn-ghost btn-sm" onclick="editarCliente('${c._id}')">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deletarCliente('${c._id}','${c.nome}')">🗑️</button>
+                </div>
+              </td>
             </tr>`).join('')}
         </tbody>
       </table>`;
@@ -612,7 +750,7 @@ function abrirCliente() {
 }
 
 function editarCliente(id) {
-  const c = cClientes.find(x => x._id === id);
+  const c = cClientes.find(x => x._id == id);
   if (!c) return;
   document.getElementById('m-cli-t').textContent    = 'Editar Cliente';
   document.getElementById('c-id').value     = c._id;
@@ -665,164 +803,7 @@ async function deletarCliente(id, nome) {
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }
 
-async function carregarPedidos() {
-  const el = document.getElementById('tbl-pedidos');
-  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
-  try {
-    const pedidos = await api('GET', '/pedidos');
-    if (!pedidos.length) {
-      el.innerHTML = '<div class="empty"><span class="ei">📋</span>Nenhum pedido</div>';
-      return;
-    }
-    el.innerHTML = `
-      <table>
-        <thead>
-          <tr><th>#</th><th>Cliente</th><th>Itens</th><th>Subtotal</th><th>Entrega</th><th>Total</th><th>Pagamento</th><th>Status</th><th>Data</th><th>Ações</th>
-        </thead>
-        <tbody>
-          ${pedidos.map(p => `
-            <tr>
-              <td><strong style="color:var(--red)">#${String(p.numeroPedido||'?').padStart(3,'0')}</strong></td>
-              <td><strong>${p.cliente?.nome || '—'}</strong><br><small style="color:var(--muted)">${p.cliente?.telefone || ''}</small></td>
-              <td style="font-size:.76rem">${p.itens.map(it => `${it.quantidade}x ${it.nomePizza || '?'} (${it.tamanho})`).join('<br>')}</td>
-              <td>${R$(p.subtotal)}</td><td>${R$(p.taxaEntrega)}</td>
-              <td><strong style="color:var(--gold)">${R$(p.total)}</strong></td>
-              <td style="font-size:.76rem">${(p.formaPagamento || '—').replace('_', ' ')}</td>
-              <td>${badge(p.status)}</td>
-              <td style="font-size:.7rem;color:var(--muted)">${new Date(p.createdAt).toLocaleString('pt-BR')}</td>
-              <td><div style="display:flex;gap:5px"><button class="btn btn-blue btn-sm" onclick="abrirStatus('${p._id}','${p.status}')">📝</button><button class="btn btn-danger btn-sm" onclick="deletarPedido('${p._id}')">🗑️</button></div></td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  } catch (e) {
-    el.innerHTML = `<div class="empty" style="color:var(--red)">${e.message}</div>`;
-  }
-}
-
-async function abrirPedido() {
-  try {
-    if (!cPizzas.length)   cPizzas   = await api('GET', '/pizzas');
-    if (!cClientes.length) cClientes = await api('GET', '/clientes');
-  } catch (e) { toast('Erro ao carregar dados', 'err'); return; }
-
-  document.getElementById('ped-cli').innerHTML =
-    '<option value="">— Selecione o cliente —</option>' +
-    cClientes.map(c => `<option value="${c._id}">${c.nome} · ${c.telefone}</option>`).join('');
-
-  document.getElementById('itens-lista').innerHTML = '';
-  document.getElementById('ped-taxa').value  = '0';
-  document.getElementById('ped-obs').value   = '';
-  document.getElementById('ped-pag').value   = 'pix';
-  document.getElementById('ped-sub').textContent = 'R$ 0,00';
-  document.getElementById('ped-tot').textContent = 'R$ 0,00';
-  document.getElementById('wrap-troco').style.display = 'none';
-
-  addItem();
-  abrir('m-pedido');
-}
-
-function addItem() {
-  const d = document.createElement('div');
-  d.className = 'item-row';
-  const opts = cPizzas
-    .filter(p => p.disponivel)
-    .map(p => `<option value="${p._id}" data-p="${p.precos?.P || 0}" data-m="${p.precos?.M || 0}" data-g="${p.precos?.G || 0}">${p.nome}</option>`).join('');
-
-  d.innerHTML = `
-    <select class="ip" onchange="recalc()"><option value="">Selecione...</option>${opts}</select>
-    <select class="it" onchange="recalc()"><option value="P">P</option><option value="M">M</option><option value="G" selected>G</option></select>
-    <input class="iq" type="number" value="1" min="1" oninput="recalc()">
-    <div class="is" style="font-size:.8rem;text-align:right;color:var(--muted)">R$ 0,00</div>
-    <button class="btn-rm" onclick="this.parentElement.remove(); recalc()">×</button>`;
-
-  document.getElementById('itens-lista').appendChild(d);
-}
-
-function recalc() {
-  let sub = 0;
-  document.querySelectorAll('#itens-lista .item-row').forEach(row => {
-    const sel = row.querySelector('.ip');
-    const tam = row.querySelector('.it').value.toLowerCase();
-    const qtd = parseInt(row.querySelector('.iq').value) || 0;
-    const opt = sel.options[sel.selectedIndex];
-    const pc  = parseFloat(opt?.dataset?.[tam] || 0);
-    const s   = pc * qtd;
-    sub += s;
-    row.querySelector('.is').textContent = R$(s);
-  });
-
-  const taxa = parseFloat(document.getElementById('ped-taxa').value) || 0;
-  document.getElementById('ped-sub').textContent = R$(sub);
-  document.getElementById('ped-tot').textContent = R$(sub + taxa);
-}
-
-function toggleTroco() {
-  const pag = document.getElementById('ped-pag').value;
-  document.getElementById('wrap-troco').style.display =
-    pag === 'dinheiro' ? 'block' : 'none';
-}
-
-async function salvarPedido() {
-  const cliId = document.getElementById('ped-cli').value;
-  if (!cliId) { toast('Selecione um cliente', 'err'); return; }
-
-  const itens = [];
-  let valido = true;
-  document.querySelectorAll('#itens-lista .item-row').forEach(row => {
-    const pid = row.querySelector('.ip').value;
-    if (!pid) { valido = false; return; }
-    itens.push({
-      pizza:      pid,
-      tamanho:    row.querySelector('.it').value,
-      quantidade: parseInt(row.querySelector('.iq').value) || 1,
-    });
-  });
-
-  if (!valido || !itens.length) {
-    toast('Adicione ao menos um item válido', 'err'); return;
-  }
-
-  try {
-    await api('POST', '/pedidos', {
-      cliente:        cliId,
-      itens,
-      taxaEntrega:    parseFloat(document.getElementById('ped-taxa').value) || 0,
-      formaPagamento: document.getElementById('ped-pag').value,
-      troco:          parseFloat(document.getElementById('ped-troco')?.value) || 0,
-      observacoes:    document.getElementById('ped-obs').value,
-    });
-    toast('Pedido criado! 🍕');
-    fechar('m-pedido');
-    carregarPedidos();
-  } catch (e) { toast('Erro: ' + e.message, 'err'); }
-}
-
-function abrirStatus(id, status) {
-  document.getElementById('st-id').value  = id;
-  document.getElementById('st-val').value = status;
-  abrir('m-status');
-}
-
-async function salvarStatus() {
-  const id     = document.getElementById('st-id').value;
-  const status = document.getElementById('st-val').value;
-  try {
-    await api('PATCH', '/pedidos/' + id + '/status', { status });
-    toast('Status atualizado!');
-    fechar('m-status');
-    carregarPedidos();
-  } catch (e) { toast('Erro: ' + e.message, 'err'); }
-}
-
-async function deletarPedido(id) {
-  if (!confirm('Deletar este pedido?')) return;
-  try {
-    await api('DELETE', '/pedidos/' + id);
-    toast('Pedido deletado!');
-    carregarPedidos();
-  } catch (e) { toast('Erro: ' + e.message, 'err'); }
-}
-
+// ═══════════════════════════════════ USUÁRIOS ══════════════
 async function carregarUsuarios() {
   const el = document.getElementById('tbl-usuarios');
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div> Carregando...</div>';
@@ -834,16 +815,25 @@ async function carregarUsuarios() {
     }
     el.innerHTML = `
       <table>
-        <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Criado em</th><th>Ações</th></tr></thead>
+        <thead>
+          <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Criado em</th><th>Ações</th></tr>
+        </thead>
         <tbody>
           ${us.map(u => `
             <tr>
               <td><strong>${u.nome}</strong></td>
               <td>${u.email}</td>
-              <td><span class="badge ${u.perfil === 'Administrador' ? 'b-admin' : 'b-atend'}">${u.perfil}</span></td>
+              <td>
+                <span class="badge ${
+                  u.perfil === 'Administrador' ? 'b-admin' :
+                  u.perfil === 'Lider'         ? 'b-lider' : 'b-operador'
+                }">${u.perfil}</span>
+              </td>
               <td><span class="badge ${u.ativo ? 'b-on' : 'b-off'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
               <td style="font-size:.73rem;color:var(--muted)">${new Date(u.createdAt).toLocaleDateString('pt-BR')}</td>
-              <td><button class="btn btn-danger btn-sm" onclick="deletarUsuario('${u._id}','${u.nome}')">🗑️</button></td>
+              <td>
+                <button class="btn btn-danger btn-sm" onclick="deletarUsuario('${u._id}','${u.nome}')">🗑️</button>
+              </td>
             </tr>`).join('')}
         </tbody>
       </table>`;
@@ -854,7 +844,7 @@ async function carregarUsuarios() {
 
 function abrirUsuario() {
   ['u-nome','u-email','u-senha'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('u-perfil').value = 'Atendente';
+  document.getElementById('u-perfil').value = 'Operador';
   abrir('m-usuario');
 }
 

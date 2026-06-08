@@ -1,5 +1,5 @@
 // ============================================================
-// Cliente.js — Model de Cliente (sql.js)
+// Cliente.js — Model de Cliente (FactoryTrack)
 // ============================================================
 
 const { ready, query, run, get } = require('../database/sqlite');
@@ -7,15 +7,15 @@ const { ready, query, run, get } = require('../database/sqlite');
 function formatarCliente(row) {
   if (!row) return null;
   return {
-    _id:        row.id,
-    id:         row.id,
-    nome:       row.nome,
-    telefone:   row.telefone,
-    endereco:   JSON.parse(row.endereco || '{}'),
+    _id:         row.id,
+    id:          row.id,
+    nome:        row.nome,
+    telefone:    row.telefone,
+    endereco:    JSON.parse(row.endereco || '{}'),
     observacoes: row.observacoes,
-    ativo:      row.ativo === 1,
-    createdAt:  row.created_at,
-    updatedAt:  row.updated_at,
+    ativo:       row.ativo === 1,
+    createdAt:   row.created_at,
+    updatedAt:   row.updated_at,
   };
 }
 

@@ -1,7 +1,7 @@
 {
-  "name": "sistema_pizzaria",
-  "version": "2.0.0",
-  "description": "Sistema de pizzaria com SQLite (sql.js)",
+  "name": "factorytrack",
+  "version": "1.0.0",
+  "description": "Sistema de Registro e Acompanhamento de Produção - MetalTech Indústria",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
