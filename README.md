@@ -33,9 +33,9 @@ node seed.js
 ```
 
 **Usuários padrão criados:**
-- **Admin**: `admin@metaltech.com` / `senha123`
-- **Líder**: `lider@metaltech.com` / `senha123`
-- **Operador**: `operador@metaltech.com` / `senha123`
+- **Admin**: `admin@metaltech.com` / `123456`
+- **Líder**: `lider@metaltech.com` / `123456`
+- **Operador**: `operador@metaltech.com` / `123456`
 
 ### 4️⃣ Inicie o Servidor
 
