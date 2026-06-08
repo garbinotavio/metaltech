@@ -19,10 +19,6 @@ Um sistema web completo para gerenciamento de ordens de produção, produtos, cl
 
 ### 1️⃣ Clone o Repositório
 
-```bash
-git clone https://github.com/seu-usuario/sistema-pizzaria.git
-cd sistema-pizzaria
-```
 
 ### 2️⃣ Instale as Dependências
 
