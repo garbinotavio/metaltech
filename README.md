@@ -19,10 +19,6 @@ Um sistema web completo para gerenciamento de ordens de produção, produtos, cl
 
 ### 1️⃣ Clone o Repositório
 
-```bash
-git clone https://github.com/seu-usuario/sistema-pizzaria.git
-cd sistema-pizzaria
-```
 
 ### 2️⃣ Instale as Dependências
 
@@ -37,9 +33,9 @@ node seed.js
 ```
 
 **Usuários padrão criados:**
-- **Admin**: `admin@metaltech.com` / `senha123`
-- **Líder**: `lider@metaltech.com` / `senha123`
-- **Operador**: `operador@metaltech.com` / `senha123`
+- **Admin**: `admin@metaltech.com` / `123456`
+- **Líder**: `lider@metaltech.com` / `123456`
+- **Operador**: `operador@metaltech.com` / `123456`
 
 ### 4️⃣ Inicie o Servidor
 
